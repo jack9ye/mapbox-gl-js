@@ -144,6 +144,7 @@ function getLineWidth(lineWidth, lineGapWidth) {
     }
 }
 
+// fix for https://github.com/mapbox/mapbox-gl-js/issues/9419
 function offsetLine(rings, offset) {
     const newRings = [];
     const zero = new Point(0, 0);
@@ -154,12 +155,17 @@ function offsetLine(rings, offset) {
             const a = ring[i - 1];
             const b = ring[i];
             const c = ring[i + 1];
-            const aToB = i === 0 ? zero : b.sub(a)._unit()._perp();
-            const bToC = i === ring.length - 1 ? zero : c.sub(b)._unit()._perp();
+            // MapBox的向量操作会修改自身，因此zero在后面的使用中会被修改，不再是“zero”了。
+            // const aToB = i === 0 ? zero : b.sub(a)._unit()._perp();
+            // const bToC = i === ring.length - 1 ? zero : c.sub(b)._unit()._perp();
+            const aToB = i === 0 ? zero.clone() : b.sub(a)._unit()._perp();
+            const bToC = i === ring.length - 1 ? zero.clone() : c.sub(b)._unit()._perp();
             const extrude = aToB._add(bToC)._unit();
 
             const cosHalfAngle = extrude.x * bToC.x + extrude.y * bToC.y;
-            extrude._mult(1 / cosHalfAngle);
+            // bToC为0向量时cosHalfAngle为0，extrude与line走向垂直，不需要额外的更多偏移。
+            if (cosHalfAngle !== 0)
+                extrude._mult(1 / cosHalfAngle);
 
             newRing.push(extrude._mult(offset)._add(b));
         }
